@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meal Logging Icon Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #009688, #4DB6AC);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        h1 { color: #009688; margin-bottom: 20px; }
+        canvas {
+            border: 2px solid #009688;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: block;
+        }
+        button {
+            background: #009688;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #00796B;
+        }
+        .instructions {
+            background: #E0F2F1;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍴 Meal Logging App Icon Generator</h1>
+        <p>Generate your custom app icons!</p>
+        
+        <div>
+            <h3>Main App Icon (1024x1024)</h3>
+            <canvas id="mainIcon" width="1024" height="1024"></canvas>
+            <button onclick="downloadIcon('mainIcon', 'app_icon.png')">Download Main Icon</button>
+        </div>
+        
+        <div>
+            <h3>Foreground Icon (432x432)</h3>
+            <canvas id="foregroundIcon" width="432" height="432"></canvas>
+            <button onclick="downloadIcon('foregroundIcon', 'app_icon_foreground.png')">Download Foreground Icon</button>
+        </div>
+        
+        <div class="instructions">
+            <h3>📝 Instructions:</h3>
+            <ol>
+                <li>Click <strong>"Download Main Icon"</strong> button</li>
+                <li>Save as <code>app_icon.png</code> in <code>assets/icon/</code> folder</li>
+                <li>Click <strong>"Download Foreground Icon"</strong> button</li>
+                <li>Save as <code>app_icon_foreground.png</code> in <code>assets/icon/</code> folder</li>
+                <li>Run the commands in your terminal (shown after download)</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Draw main icon (1024x1024) - with background
+        function drawMainIcon() {
+            const canvas = document.getElementById('mainIcon');
+            const ctx = canvas.getContext('2d');
+            
+            // Teal gradient background
+            const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+            gradient.addColorStop(0, '#009688');
+            gradient.addColorStop(0.5, '#26A69A');
+            gradient.addColorStop(1, '#4DB6AC');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 1024, 1024);
+            
+            // White rounded square for icon
+            ctx.fillStyle = 'white';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 10;
+            
+            const boxSize = 600;
+            const x = (1024 - boxSize) / 2;
+            const y = (1024 - boxSize) / 2;
+            const radius = 80;
+            
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + boxSize - radius, y);
+            ctx.quadraticCurveTo(x + boxSize, y, x + boxSize, y + radius);
+            ctx.lineTo(x + boxSize, y + boxSize - radius);
+            ctx.quadraticCurveTo(x + boxSize, y + boxSize, x + boxSize - radius, y + boxSize);
+            ctx.lineTo(x + radius, y + boxSize);
+            ctx.quadraticCurveTo(x, y + boxSize, x, y + boxSize - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Reset shadow
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            
+            // Draw emoji (fork and knife)
+            ctx.font = 'bold 400px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍴', 512, 512);
+        }
+        
+        // Draw foreground icon (432x432) - transparent background
+        function drawForegroundIcon() {
+            const canvas = document.getElementById('foregroundIcon');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas (transparent)
+            ctx.clearRect(0, 0, 432, 432);
+            
+            // Draw emoji
+            ctx.font = 'bold 300px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🍴', 216, 216);
+        }
+        
+        // Download canvas as image
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            // Show success message
+            alert(`✅ ${filename} downloaded!\n\nSave it to: assets/icon/${filename}`);
+        }
+        
+        // Generate icons on page load
+        window.onload = function() {
+            drawMainIcon();
+            drawForegroundIcon();
+        };
+    </script>
+</body>
+</html>
