@@ -6,6 +6,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'services/storage_service.dart';
 import 'services/haptic_service.dart';
 import 'services/analytics_service.dart';
+import 'services/notification_service.dart';
 import 'providers/meal_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/alarm_provider.dart';
@@ -13,10 +14,12 @@ import 'screens/splash_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/statistics_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/alarm_response_screen.dart';
 
 // Global instances
 final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 final AnalyticsService analyticsService = AnalyticsService();
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +36,18 @@ void main() async {
 
   final hapticService = HapticService();
   await hapticService.initialize();
+
+  // Set navigator key for notification service
+  NotificationService.setNavigatorKey(navigatorKey);
+
+  // Set alarm response builder
+  NotificationService.setAlarmResponseBuilder(
+    (date, message, actionId) => AlarmResponseScreen(
+      alarmDate: date,
+      originalMessage: message,
+      actionId: actionId,
+    ),
+  );
 
   // Log app open (uncomment after Firebase is configured)
   // await analyticsService.logAppOpen();
@@ -67,6 +82,7 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Meal Logging App',
             debugShowCheckedModeBanner: false,
+            navigatorKey: navigatorKey,
             // Uncomment after Firebase is configured for automatic screen tracking
             // navigatorObservers: [
             //   analyticsService.getAnalyticsObserver(),

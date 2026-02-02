@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -12,6 +15,74 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
+  
+  // Navigation key for handling notification responses
+  static GlobalKey<NavigatorState>? navigatorKey;
+  
+  static void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    navigatorKey = key;
+  }
+  
+  // Handle notification responses (when user taps notification or action buttons)
+  void _handleNotificationResponse(NotificationResponse details) {
+    debugPrint('📱 Notification Response:');
+    debugPrint('   Action ID: ${details.actionId}');
+    debugPrint('   Payload: ${details.payload}');
+    
+    if (details.payload == null || navigatorKey?.currentContext == null) {
+      debugPrint('❌ No payload or context available');
+      return;
+    }
+    
+    try {
+      final Map<String, dynamic> data = jsonDecode(details.payload!);
+      final DateTime alarmDate = DateTime.parse(data['date']);
+      final String message = data['message'] ?? 'Mess Out Reminder';
+      final String actionId = details.actionId ?? 'tap';
+      
+      debugPrint('   Date: $alarmDate');
+      debugPrint('   Message: $message');
+      
+      // Navigate to alarm response screen
+      if (actionId != 'dismiss') {
+        navigatorKey!.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) {
+              // Import the screen dynamically
+              return _buildAlarmResponseScreen(alarmDate, message, actionId);
+            },
+          ),
+        );
+      } else {
+        debugPrint('   ✅ Alarm dismissed');
+      }
+    } catch (e) {
+      debugPrint('❌ Error handling notification response: $e');
+    }
+  }
+  
+  // Callback function to build alarm response screen (set from main.dart)
+  static Widget Function(DateTime, String, String)? alarmResponseBuilder;
+  
+  static void setAlarmResponseBuilder(
+    Widget Function(DateTime, String, String) builder,
+  ) {
+    alarmResponseBuilder = builder;
+  }
+  
+  // Build the alarm response screen
+  Widget _buildAlarmResponseScreen(DateTime date, String message, String actionId) {
+    if (alarmResponseBuilder != null) {
+      return alarmResponseBuilder!(date, message, actionId);
+    }
+    // Fallback if builder not set
+    return Scaffold(
+      appBar: AppBar(title: const Text('Alarm Response')),
+      body: Center(
+        child: Text('Action: $actionId\nDate: $date\nMessage: $message'),
+      ),
+    );
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -38,23 +109,55 @@ class NotificationService {
     try {
       await _notifications.initialize(
         initSettings,
-        onDidReceiveNotificationResponse: (details) {
-          debugPrint('Notification tapped: ${details.payload}');
-        },
+        onDidReceiveNotificationResponse: _handleNotificationResponse,
       );
 
       // Request permissions for Android 13+
       if (defaultTargetPlatform == TargetPlatform.android) {
-        await _notifications
+        final androidPlugin = _notifications
             .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.requestNotificationsPermission();
+                AndroidFlutterLocalNotificationsPlugin>();
+        
+        await androidPlugin?.requestNotificationsPermission();
+        
+        // Request exact alarm permission (required for Android 12+)
+        await androidPlugin?.requestExactAlarmsPermission();
+        
+        // Create notification channel with alarm properties
+        // IMPORTANT: Channel ID changed to 'meal_alarms_v2' to reset sound settings
+        const AndroidNotificationChannel channel = AndroidNotificationChannel(
+          'meal_alarms_v2', // New channel ID to force sound reset
+          'Meal Alarms',
+          description: 'Alarms and reminders for meal logging',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          enableLights: true,
+          showBadge: true,
+        );
+        
+        await androidPlugin?.createNotificationChannel(channel);
+        
+        // Also create test notification channel
+        const AndroidNotificationChannel testChannel = AndroidNotificationChannel(
+          'test_notifications',
+          'Test Alarms',
+          description: 'Test alarm notifications',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+          enableLights: true,
+        );
+        
+        await androidPlugin?.createNotificationChannel(testChannel);
+        
+        debugPrint('✅ Alarm notification channels created');
       }
 
       _initialized = true;
-      debugPrint('Notification service initialized successfully');
+      debugPrint('✅ Notification service initialized successfully');
     } catch (e) {
-      debugPrint('Error initializing notifications: $e');
+      debugPrint('❌ Error initializing notifications: $e');
     }
   }
 
@@ -86,16 +189,47 @@ class NotificationService {
       return;
     }
 
-    const androidDetails = AndroidNotificationDetails(
-      'date_specific_alarms',
-      'Meal Reminders',
-      channelDescription: 'Date-specific reminders for meal logging',
+    final androidDetails = AndroidNotificationDetails(
+      'meal_alarms_v2', // Updated to match new channel ID
+      'Meal Alarms',
+      channelDescription: 'Alarms and reminders for meal logging',
       importance: Importance.max,
       priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
       enableVibration: true,
+      enableLights: true,
       fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      styleInformation: BigTextStyleInformation(message),
+      // Make it persistent until user responds
+      ongoing: true,
+      autoCancel: false,
+      // Longer vibration pattern for more noticeable alarm
+      vibrationPattern: Int64List.fromList([
+        0, 1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000
+      ]),
+      // Add action buttons
+      actions: <AndroidNotificationAction>[
+        const AndroidNotificationAction(
+          'confirmed_out',
+          '✅ I\'m Out of Mess',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+        const AndroidNotificationAction(
+          'remind_later',
+          '⏰ Remind Me Later',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+        const AndroidNotificationAction(
+          'dismiss',
+          '❌ Dismiss',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+      ],
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -105,10 +239,18 @@ class NotificationService {
       sound: 'alarm.aiff',
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
+
+    // Create payload with alarm information
+    final payload = jsonEncode({
+      'date': date.toIso8601String(),
+      'message': message,
+      'hour': hour,
+      'minute': minute,
+    });
 
     try {
       await _notifications.zonedSchedule(
@@ -120,11 +262,24 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
+        payload: payload,
       );
 
-      debugPrint('Alarm scheduled for ${scheduledDate.day}/${scheduledDate.month} at ${scheduledDate.hour}:${scheduledDate.minute}');
+      debugPrint('✅ ALARM SCHEDULED SUCCESSFULLY:');
+      debugPrint('   📅 Date: ${scheduledDate.day}/${scheduledDate.month}/${scheduledDate.year}');
+      debugPrint('   ⏰ Time: ${scheduledDate.hour.toString().padLeft(2, '0')}:${scheduledDate.minute.toString().padLeft(2, '0')}');
+      debugPrint('   🆔 Notification ID: $notificationId');
+      debugPrint('   💬 Message: $message');
+      debugPrint('   ⏱️  Time until alarm: ${scheduledDate.difference(now).inMinutes} minutes');
+      
+      // Verify the alarm was scheduled
+      final pending = await _notifications.pendingNotificationRequests();
+      debugPrint('   📋 Total pending alarms: ${pending.length}');
+      for (var p in pending) {
+        debugPrint('      - ID: ${p.id}, Title: ${p.title}');
+      }
     } catch (e) {
-      debugPrint('Error scheduling notification: $e');
+      debugPrint('❌ ERROR scheduling notification: $e');
       rethrow;
     }
   }
@@ -143,7 +298,7 @@ class NotificationService {
   Future<void> showImmediateNotification(String message) async {
     await initialize();
 
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       'test_notifications',
       'Test Notifications',
       channelDescription: 'Test notification channel',
@@ -151,6 +306,10 @@ class NotificationService {
       priority: Priority.high,
       playSound: true,
       enableVibration: true,
+      enableLights: true,
+      category: AndroidNotificationCategory.alarm,
+      styleInformation: BigTextStyleInformation(message),
+      vibrationPattern: Int64List.fromList([0, 1000, 500, 1000]),
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -159,7 +318,7 @@ class NotificationService {
       presentSound: true,
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
